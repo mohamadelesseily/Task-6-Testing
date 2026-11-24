@@ -1,6 +1,6 @@
 // Frontend tests for the ItemForm page — THIS is the only frontend file you edit.
 // Run with:  npm test --workspace client
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import ItemForm from './ItemForm.jsx'
@@ -44,6 +44,38 @@ describe('ItemForm — report mode (/items/new)', () => {
     expect(category).toHaveValue('other')
   })
 
-  test.todo('submitting POSTs { title, status, category, location, description } (no reportedBy) and navigates to /items')
-  test.todo('shows the server\'s message when the request fails (e.g. 409) and stays on the page')
+  test('submitting POSTs the editable fields and navigates to /items', async () => {
+    const user = userEvent.setup()
+    api.post.mockResolvedValue({ data: { item: {} } })
+    renderAt('/items/new')
+
+    await user.type(screen.getByPlaceholderText(/title/i), 'Blue umbrella')
+    await user.selectOptions(screen.getAllByRole('combobox')[0], 'found')
+    await user.selectOptions(screen.getAllByRole('combobox')[1], 'accessories')
+    await user.type(screen.getByPlaceholderText(/location/i), 'Cafeteria')
+    await user.type(screen.getByPlaceholderText(/description/i), 'Near the entrance')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(api.post).toHaveBeenCalledWith('/items', {
+      title: 'Blue umbrella',
+      status: 'found',
+      category: 'accessories',
+      location: 'Cafeteria',
+      description: 'Near the entrance'
+    })
+    expect(await screen.findByText('Items page')).toBeInTheDocument()
+  })
+
+  test('shows the server\'s message when the request fails and stays on the page', async () => {
+    const user = userEvent.setup()
+    api.post.mockRejectedValue({ response: { data: { message: 'Duplicate item at this location' } } })
+    renderAt('/items/new')
+
+    await user.type(screen.getByPlaceholderText(/title/i), 'Blue umbrella')
+    await user.type(screen.getByPlaceholderText(/location/i), 'Cafeteria')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    expect(await screen.findByText('Duplicate item at this location')).toBeInTheDocument()
+    expect(screen.queryByText('Items page')).not.toBeInTheDocument()
+  })
 })
